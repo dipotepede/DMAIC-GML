@@ -127,7 +127,7 @@ regime = st.sidebar.selectbox(
 )
 
 if "OOD" in regime:
-    # Cell 1 Parameters (Dissertation Section 4.6.3 / Table 4.7)[cite: 2]
+    # Cell 1 Parameters (Dissertation Section 4.6.3 / Table 4.7)
     cell_label = "Cell 1 (OOD Robust Optimal State)"
     dropout = 0.2
     weight_decay = "1e-5"
@@ -140,7 +140,7 @@ if "OOD" in regime:
     ss_target = 0.9729
     metric_name = "Macro F1-Score"
 else:
-    # Cell 7 Parameters (Dissertation Section 4.3.5 / Table 4.2)[cite: 3]
+    # Cell 7 Parameters (Dissertation Section 4.3.5 / Table 4.2)
     cell_label = "Cell 7 (IID Robust Optimal State)"
     dropout = 0.5
     weight_decay = "1e-4"
@@ -153,15 +153,16 @@ else:
     ss_target = 0.994821
     metric_name = "Classification Accuracy"
 
+# Clean Sidebar Formatting (Unicode Character Mapping - Zero Rendering Artifacts)
 st.sidebar.info(f"""
 **Active Governance Locks:**
 * **Configuration:** {cell_label}
-* **Dropout ($A$):** {dropout}
-* **$L_2$ Weight Decay ($B$):** {weight_decay}
-* **Augmentation ($C$):** {aug_strategy}
-* **Process Baseline ($\bar{{Y}}$):** {baseline_ybar:.4f}
-* **Audit Dispersion ($\bar{{mR}}$):** {baseline_mrbar:.6f}
-* **Target Stability Gate ($S_s$):** {ss_target:.4f}
+* **Dropout (A):** {dropout}
+* **L2 Weight Decay (B):** {weight_decay}
+* **Augmentation (C):** {aug_strategy}
+* **Process Baseline (Ȳ):** {baseline_ybar:.4f}
+* **Audit Dispersion (mR̄):** {baseline_mrbar:.6f}
+* **Target Stability Gate (Sₛ):** {ss_target:.4f}
 """)
 
 # Session State for Time-Series SPC Control Chart
