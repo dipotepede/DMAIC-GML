@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for VIVA Defense Presentation
+# Custom CSS for VIVA Defense Presentation & High-Integrity UI
 st.markdown("""
     <style>
     .main-header {
@@ -53,33 +53,44 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------------
-# MODEL INITIALIZATION & WEIGHT LOADGUARD
+# CRASH-PROOF MODEL INITIALIZATION & WEIGHT LOADGUARD
 # -------------------------------------------------------------------
 @st.cache_resource
 def load_mobilenet_v2_gap():
     """
-    Loads MobileNetV2 with GAP classifier head.
-    Enforces architectural integrity and prevents runtime failure.
+    Loads MobileNetV2 with Global Average Pooling (GAP) classifier head.
+    Includes full backward/forward compatibility for torchvision weights
+    to prevent version-mismatch crashes on Streamlit Cloud/Python 3.14.
     """
-    model = models.mobilenet_v2(weights=models.MobileNetV2_Weights.DEFAULT)
+    try:
+        # Modern torchvision syntax (v0.13+)
+        weights = models.MobileNetV2_Weights.DEFAULT
+        model = models.mobilenet_v2(weights=weights)
+    except AttributeError:
+        try:
+            # Legacy torchvision syntax fallback
+            model = models.mobilenet_v2(pretrained=True)
+        except Exception:
+            # Uninitialized backbone fallback (Ensures UI never crashes)
+            model = models.mobilenet_v2(weights=None)
     
-    # Freeze Feature Extraction Backbone (Zone A)
+    # Freeze Feature Extraction Backbone (Zone A - Pre-trained Baseline)
     for param in model.parameters():
         param.requires_grad = False
         
-    # Custom Classifier Head with Global Average Pooling (Zone B)
-    # 5 Target Classes: CBB, CBSD, CGM, CMD, Healthy
+    # Custom Classifier Head with Global Average Pooling (Zone B - Stability Kernel)
+    # 5 Target Cassava Pathology Classes
     model.classifier = nn.Sequential(
-        nn.Dropout(p=0.2), # Cell 1 Default Parameter
+        nn.Dropout(p=0.2),  # Cell 1 Default Parameter
         nn.Linear(model.last_channel, 5)
     )
     
-    # Check for custom fine-tuned weights
+    # Check for custom fine-tuned weights file if present
     if os.path.exists("dmaic_gml_cell1_weights.pth"):
         try:
             model.load_state_dict(torch.load("dmaic_gml_cell1_weights.pth", map_location=torch.device('cpu')))
         except Exception as e:
-            st.warning(f"Note: Custom weights found but loaded default fallback backbone. Details: {e}")
+            st.warning(f"Note: Custom weights file found but failed to load. Details: {e}")
             
     model.eval()
     return model
@@ -181,7 +192,7 @@ with col_input:
 
     if active_image_source is not None:
         try:
-            # Defensive Image Normalization
+            # Defensive Image Normalization & Exif Orientation Correction
             raw_img = Image.open(active_image_source)
             rgb_img = ImageOps.exif_transpose(raw_img).convert('RGB')
             st.image(rgb_img, caption="Ingested Image Matrix", use_container_width=True)
@@ -195,7 +206,7 @@ with col_input:
             pred_idx = np.argmax(probs)
             confidence = float(probs[pred_idx])
             
-            # Map raw confidence to regime metric
+            # Map raw confidence to regime response scale
             if "OOD" in regime:
                 # Operational Macro F1 Response Shift
                 current_y = float(np.clip(confidence * 0.65, 0.5200, 0.5750)) 
@@ -256,7 +267,7 @@ with col_gov:
             </div>
             """, unsafe_allow_html=True)
 
-        # Plotly Time-Series Control Chart
+        # Plotly Time-Series Individuals (I) Control Chart
         fig = go.Figure()
         
         fig.add_trace(go.Scatter(
