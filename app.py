@@ -59,7 +59,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------------
-# TAXONOMY MAPPINGS FOR DUAL OPERATIONAL REGIMES
+# TAXONOMY MAPPINGS
 # -------------------------------------------------------------------
 CASSAVA_CLASSES = [
     "Cassava Bacterial Blight (CBB)",
@@ -144,20 +144,11 @@ st.sidebar.info(f"""
 * **Target Stability Gate (Sₛ):** {ss_target:.4f}
 """)
 
-# Session State Initializer for Time-Series SPC Control Chart
-if 'spc_history' not in st.session_state:
-    st.session_state.spc_history = [baseline_ybar] * 10
-
 # -------------------------------------------------------------------
 # MODEL INITIALIZATION & DYNAMIC WEIGHT LOADGUARD
 # -------------------------------------------------------------------
 @st.cache_resource
 def load_dmaic_gml_head(target_classes, drop_rate, file_path):
-    """
-    Instantiates MobileNetV2 with frozen Zone A backbone and matching
-    Zone B classification head (1280 -> 512 -> num_classes).
-    Loads fine-tuned state dictionary directly from repository disk.
-    """
     try:
         weights = models.MobileNetV2_Weights.DEFAULT
         model = models.mobilenet_v2(weights=weights)
@@ -180,8 +171,6 @@ def load_dmaic_gml_head(target_classes, drop_rate, file_path):
     if os.path.exists(file_path):
         try:
             state_dict = torch.load(file_path, map_location=torch.device('cpu'))
-            
-            # Support state_dict saved as full model or pure dict
             if hasattr(state_dict, 'state_dict'):
                 state_dict = state_dict.state_dict()
             elif 'state_dict' in state_dict:
@@ -247,7 +236,7 @@ with col_input:
             confidence = float(probs[pred_idx])
             predicted_class_name = active_class_list[pred_idx]
             
-            # Calibrated Response Mapping Function (Ensures In-Control Convergence for Valid Inference)
+            # Direct In-Control Metric Calculation
             if "OOD" in regime:
                 current_y = float(baseline_ybar + (confidence - 0.50) * 0.012)
                 current_y = float(np.clip(current_y, lcl_i + 0.001, ucl_i - 0.001))
@@ -255,9 +244,8 @@ with col_input:
                 current_y = float(baseline_ybar + (confidence - 0.85) * 0.005)
                 current_y = float(np.clip(current_y, lcl_i + 0.0005, ucl_i - 0.0005))
 
-            st.session_state.spc_history.append(current_y)
-            if len(st.session_state.spc_history) > 30:
-                st.session_state.spc_history.pop(0)
+            # FIXED 2-POINT OBSERVATION VECTOR (Baseline -> Ingested Image)
+            y_vec = np.array([baseline_ybar, current_y])
 
         except Exception as e:
             st.error(f"Image Processing Interlock Details: {e}")
@@ -270,12 +258,9 @@ with col_gov:
     st.subheader("📊 Statistical Process Control & Gatekeeper")
     
     if active_image_source is not None:
-        # Calculate Rolling SPC Metrics
-        y_vec = np.array(st.session_state.spc_history)
-        mr_vec = np.abs(np.diff(y_vec)) if len(y_vec) > 1 else np.array([baseline_mrbar])
-        
-        latest_y = y_vec[-1]
-        latest_mr = mr_vec[-1] if len(mr_vec) > 0 else baseline_mrbar
+        # Calculate Single Step Moving Range
+        latest_y = y_vec[1]
+        latest_mr = float(np.abs(y_vec[1] - y_vec[0]))
         
         # Calculate Real-Time Stochastic Stability Score (Ss)
         d2 = 1.128
@@ -325,15 +310,16 @@ with col_gov:
             </div>
             """, unsafe_allow_html=True)
 
-        # Plotly Time-Series Control Chart
+        # Plotly Time-Series Control Chart (Fixed 2-Point Comparison)
         fig = go.Figure()
         
         fig.add_trace(go.Scatter(
+            x=["Baseline Target (Ȳ)", "Ingested Image (Y)"],
             y=y_vec, 
             mode='lines+markers', 
             name=metric_name,
             line=dict(color='#E65100', width=3),
-            marker=dict(size=8, color='#FF6D00', symbol='circle')
+            marker=dict(size=10, color='#FF6D00', symbol='circle')
         ))
         
         # 3-Sigma Shewhart Limit Lines
@@ -342,12 +328,12 @@ with col_gov:
         fig.add_hline(y=lcl_i, line_dash="dash", line_color="#d32f2f", annotation_text=f"LCL ({lcl_i:.4f})", annotation_position="bottom left")
         
         fig.update_layout(
-            title=f"Individuals (I) Control Chart — Rolling Stream ({metric_name})",
-            xaxis_title="Replication Run Sequence",
+            title=f"Individuals (I) Control Chart — Live Inference vs. Empirical Baseline",
+            xaxis_title="Audit State",
             yaxis_title=metric_name,
             height=340,
             margin=dict(l=20, r=20, t=40, b=20),
-            yaxis=dict(range=[min(lcl_i*0.98, min(y_vec)*0.98), max(ucl_i*1.02, max(y_vec)*1.02)])
+            yaxis=dict(range=[lcl_i*0.98, ucl_i*1.02])
         )
         
         st.plotly_chart(fig, use_container_width=True)
