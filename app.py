@@ -10,7 +10,7 @@ import torch.nn as nn
 import os
 
 # -------------------------------------------------------------------
-# PAGE CONFIGURATION & INDUSTRIAL THEME
+# PAGE CONFIGURATION & DARK ORANGE THEME
 # -------------------------------------------------------------------
 st.set_page_config(
     page_title="DMAIC-GML Governance Kernel",
@@ -19,34 +19,33 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for VIVA Defense Presentation & High-Integrity UI
+# Custom CSS for High Contrast on both Dark and Light Backgrounds
 st.markdown("""
     <style>
     .main-header {
-        font-size: 26px;
+        font-size: 28px;
         font-weight: bold;
-        color: #1a365d;
+        color: #E65100; /* Dark Orange Primary */
         margin-bottom: 0px;
     }
     .sub-header {
         font-size: 15px;
-        color: #4a5568;
         margin-bottom: 20px;
     }
     .gate-passed {
-        background-color: #d4edda;
-        color: #155724;
-        padding: 12px;
+        background-color: rgba(40, 167, 69, 0.15);
+        color: #2e7d32;
+        padding: 14px;
         border-radius: 6px;
-        border-left: 5px solid #28a745;
+        border-left: 6px solid #2e7d32;
         font-weight: bold;
     }
     .gate-blocked {
-        background-color: #f8d7da;
-        color: #721c24;
-        padding: 12px;
+        background-color: rgba(220, 53, 69, 0.15);
+        color: #c62828;
+        padding: 14px;
         border-radius: 6px;
-        border-left: 5px solid #dc3545;
+        border-left: 6px solid #c62828;
         font-weight: bold;
     }
     </style>
@@ -71,7 +70,7 @@ def load_mobilenet_v2_gap():
             # Legacy torchvision syntax fallback
             model = models.mobilenet_v2(pretrained=True)
         except Exception:
-            # Uninitialized backbone fallback (Ensures UI never crashes)
+            # Uninitialized backbone fallback
             model = models.mobilenet_v2(weights=None)
     
     # Freeze Feature Extraction Backbone (Zone A - Pre-trained Baseline)
@@ -128,7 +127,7 @@ regime = st.sidebar.selectbox(
 )
 
 if "OOD" in regime:
-    # Cell 1 Parameters (Dissertation Section 4.6.3 / Table 4.7)
+    # Cell 1 Parameters (Dissertation Section 4.6.3 / Table 4.7)[cite: 2]
     cell_label = "Cell 1 (OOD Robust Optimal State)"
     dropout = 0.2
     weight_decay = "1e-5"
@@ -141,7 +140,7 @@ if "OOD" in regime:
     ss_target = 0.9729
     metric_name = "Macro F1-Score"
 else:
-    # Cell 7 Parameters (Dissertation Section 4.3.5 / Table 4.2)
+    # Cell 7 Parameters (Dissertation Section 4.3.5 / Table 4.2)[cite: 3]
     cell_label = "Cell 7 (IID Robust Optimal State)"
     dropout = 0.5
     weight_decay = "1e-4"
@@ -208,7 +207,6 @@ with col_input:
             
             # Map raw confidence to regime response scale
             if "OOD" in regime:
-                # Operational Macro F1 Response Shift
                 current_y = float(np.clip(confidence * 0.65, 0.5200, 0.5750)) 
             else:
                 current_y = float(confidence)
@@ -267,26 +265,28 @@ with col_gov:
             </div>
             """, unsafe_allow_html=True)
 
-        # Plotly Time-Series Individuals (I) Control Chart
+        # Plotly Time-Series Control Chart (Dark Orange Primary Accent)
         fig = go.Figure()
         
+        # Dynamic Trace using Vibrant Dark Orange (#E65100)
         fig.add_trace(go.Scatter(
             y=y_vec, 
             mode='lines+markers', 
             name=metric_name,
-            line=dict(color='#1f77b4', width=2),
-            marker=dict(size=6)
+            line=dict(color='#E65100', width=3),
+            marker=dict(size=8, color='#FF6D00', symbol='circle')
         ))
         
-        fig.add_hline(y=ucl_i, line_dash="dash", line_color="red", annotation_text=f"UCL ({ucl_i:.4f})")
-        fig.add_hline(y=baseline_ybar, line_color="black", annotation_text=f"Mean ({baseline_ybar:.4f})")
-        fig.add_hline(y=lcl_i, line_dash="dash", line_color="red", annotation_text=f"LCL ({lcl_i:.4f})")
+        # 3-Sigma Shewhart Limit Lines
+        fig.add_hline(y=ucl_i, line_dash="dash", line_color="#d32f2f", annotation_text=f"UCL ({ucl_i:.4f})", annotation_position="top left")
+        fig.add_hline(y=baseline_ybar, line_color="#388e3c", annotation_text=f"Mean ({baseline_ybar:.4f})", annotation_position="bottom left")
+        fig.add_hline(y=lcl_i, line_dash="dash", line_color="#d32f2f", annotation_text=f"LCL ({lcl_i:.4f})", annotation_position="bottom left")
         
         fig.update_layout(
             title=f"Individuals (I) Control Chart — Rolling Stream ({metric_name})",
             xaxis_title="Replication Run Sequence",
             yaxis_title=metric_name,
-            height=320,
+            height=340,
             margin=dict(l=20, r=20, t=40, b=20),
             yaxis=dict(range=[min(lcl_i*0.98, min(y_vec)*0.98), max(ucl_i*1.02, max(y_vec)*1.02)])
         )
