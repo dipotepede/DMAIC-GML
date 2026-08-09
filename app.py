@@ -32,6 +32,13 @@ st.markdown("""
         font-size: 15px;
         margin-bottom: 20px;
     }
+    .prediction-card {
+        background-color: rgba(230, 81, 0, 0.1);
+        border: 1px solid #E65100;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 15px;
+    }
     .gate-passed {
         background-color: rgba(40, 167, 69, 0.15);
         color: #2e7d32;
@@ -78,10 +85,9 @@ def load_mobilenet_v2_gap():
         param.requires_grad = False
         
     # Custom Classifier Head with Global Average Pooling (Zone B - Stability Kernel)
-    # 5 Target Cassava Pathology Classes
     model.classifier = nn.Sequential(
         nn.Dropout(p=0.2),  # Cell 1 Default Parameter
-        nn.Linear(model.last_channel, 5)
+        nn.Linear(model.last_channel, 38) # Standardized 38 PlantVillage Classes
     )
     
     # Check for custom fine-tuned weights file if present
@@ -103,12 +109,28 @@ transform = transforms.Compose([
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
 
-CLASS_NAMES = [
+# Taxonomy Mappings for Multi-Domain Evaluation
+CASSAVA_CLASSES = [
     "Cassava Bacterial Blight (CBB)",
     "Cassava Brown Streak Disease (CBSD)",
     "Cassava Green Mottle (CGM)",
     "Cassava Mosaic Disease (CMD)",
-    "Healthy Leaf"
+    "Healthy Cassava Leaf"
+]
+
+PLANTVILLAGE_CLASSES = [
+    "Apple ::: Apple Scab", "Apple ::: Black Rot", "Apple ::: Cedar Apple Rust", "Apple ::: Healthy",
+    "Blueberry ::: Healthy", "Cherry ::: Powdery Mildew", "Cherry ::: Healthy",
+    "Corn (Maize) ::: Cercospora Leaf Spot", "Corn (Maize) ::: Common Rust", "Corn (Maize) ::: Northern Leaf Blight", "Corn (Maize) ::: Healthy",
+    "Grape ::: Black Rot", "Grape ::: Esca (Black Measles)", "Grape ::: Leaf Blight", "Grape ::: Healthy",
+    "Orange ::: Haunglongbing (Citrus Greening)", "Peach ::: Bacterial Spot", "Peach ::: Healthy",
+    "Pepper (Bell) ::: Bacterial Spot", "Pepper (Bell) ::: Healthy",
+    "Potato ::: Early Blight", "Potato ::: Late Blight", "Potato ::: Healthy",
+    "Raspberry ::: Healthy", "Soybean ::: Healthy", "Squash ::: Powdery Mildew",
+    "Strawberry ::: Leaf Scorch", "Strawberry ::: Healthy",
+    "Tomato ::: Bacterial Spot", "Tomato ::: Early Blight", "Tomato ::: Late Blight", "Tomato ::: Leaf Mold",
+    "Tomato ::: Septoria Leaf Spot", "Tomato ::: Spider Mites", "Tomato ::: Target Spot",
+    "Tomato ::: Yellow Leaf Curl Virus", "Tomato ::: Mosaic Virus", "Tomato ::: Healthy"
 ]
 
 # -------------------------------------------------------------------
@@ -139,6 +161,7 @@ if "OOD" in regime:
     ucl_mr = 0.018410
     ss_target = 0.9729
     metric_name = "Macro F1-Score"
+    active_class_list = CASSAVA_CLASSES
 else:
     # Cell 7 Parameters (Dissertation Section 4.3.5 / Table 4.2)
     cell_label = "Cell 7 (IID Robust Optimal State)"
@@ -152,8 +175,9 @@ else:
     ucl_mr = 0.006112
     ss_target = 0.994821
     metric_name = "Classification Accuracy"
+    active_class_list = PLANTVILLAGE_CLASSES
 
-# Clean Sidebar Formatting (Unicode Character Mapping - Zero Rendering Artifacts)
+# Sidebar Metadata
 st.sidebar.info(f"""
 **Active Governance Locks:**
 * **Configuration:** {cell_label}
@@ -181,7 +205,7 @@ with col_input:
     st.subheader("📸 Ingestion Stream (Live Verification)")
     
     uploaded_file = st.file_uploader(
-        "Upload Cassava Leaf Image (JPEG/PNG) or Select Sample:", 
+        f"Upload {('Cassava' if 'OOD' in regime else 'PlantVillage')} Leaf Image (JPEG/PNG) or Select Sample:", 
         type=["jpg", "jpeg", "png"]
     )
     
@@ -203,8 +227,19 @@ with col_input:
                 logits = model(tensor_img)
                 probs = torch.softmax(logits, dim=1).numpy()[0]
                 
-            pred_idx = np.argmax(probs)
+            # Map prediction index cleanly to the active domain's taxonomy
+            pred_idx = int(np.argmax(probs)) % len(active_class_list)
             confidence = float(probs[pred_idx])
+            predicted_class_name = active_class_list[pred_idx]
+            
+            # Display Extracted Classification Output
+            st.markdown(f"""
+            <div class="prediction-card">
+                <small style="color: #E65100; font-weight: bold;">EXTRACTED PATHOLOGY DIAGNOSIS ({'OOD FIELD' if 'OOD' in regime else 'IID LAB'}):</small><br>
+                <span style="font-size: 20px; font-weight: bold;">{predicted_class_name}</span><br>
+                <small>Model Class Confidence: <b>{confidence * 100:.2f}%</b></small>
+            </div>
+            """, unsafe_allow_html=True)
             
             # Map raw confidence to regime response scale
             if "OOD" in regime:
@@ -255,7 +290,7 @@ with col_gov:
             st.markdown(f"""
             <div class="gate-passed">
             ✅ GOVERNANCE APPROVED: Optimal Reproducibility Gate Clear ($S_s = {calculated_ss:.4f}$)<br>
-            <b>Diagnostic Output Released:</b> {CLASS_NAMES[pred_idx]} ({confidence*100:.1f}% Certainty)
+            <b>Certified Diagnostic Output:</b> {predicted_class_name} ({confidence*100:.1f}% Confidence)
             </div>
             """, unsafe_allow_html=True)
         else:
