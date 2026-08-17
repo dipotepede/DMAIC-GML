@@ -16,7 +16,28 @@ An interactive, edge-governed AI kernel demonstrating the application of Lean Si
   * **In-Distribution (IID / PlantVillage):** Cell 7 configuration ($p=0.5, \lambda=1\text{e-}4$, Standard Augmentation) achieving $S_s = 0.9948$.
   * **Out-of-Distribution (OOD / Nigerian Cassava Field):** Cell 1 configuration ($p=0.2, \lambda=1\text{e-}5$, Standard Augmentation) achieving a **44.98% collapse in process jitter** ($\bar{mR} = 0.004672, S_s = 0.9729$) under severe environmental noise.
 * **Architectural Integrity Enforcement:** Built on MobileNetV2 with Global Average Pooling (GAP) layers and Feature-Space SMOTE, eliminating spatial tensor explosion while preserving semantic feature maps.
+  
+## Runtime Determinism Verification ($mR_{\text{inf}} = 0.000000$)
 
+The DMAIC-GML engine integrates an automated runtime verification gatekeeper prior to full edge deployment. During inference audit on static inputs, the system computes the consecutive moving range ($mR_{\text{inf}}$) across sequential forward passes:
+
+$$mR_{\text{inf}} = |X_t - X_{t-1}|$$
+
+* **Evaluation-Mode Enforcement:** Executes the forward pass under frozen evaluation mode (`model.eval()`) with autograd graphs disabled (`torch.no_grad()`).
+* **Zero Runtime Jitter ($mR_{\text{inf}} = 0.000000$):** Passes on identical static inputs yield a moving range of zero, certifying that execution is strictly deterministic and free from dynamic state fluctuations.
+* **Pre-Deployment Sanity Gate:** Acts as an automated Poka-Yoke (mistake-proofing) interlock to confirm that stochastic training regularizers (e.g., Dropout) and batch-dependent statistics are completely frozen before live $I\text{-}mR$ time-series governance begins.
+
+---
+
+## Theoretical Justification
+
+* **Mathematical Determinism of Forward Inference:** In inference mode, a deep convolutional neural network operates as a static mathematical function:
+
+  $$f(x; W) = \hat{y}$$
+
+  When the model weights ($W$) are frozen and the input tensor ($x$) remains identical across consecutive passes, deterministic linear algebra and fixed activation layers must produce identical logits.
+* **Deactivation of Stochastic Layers:** In evaluation mode, pseudo-random mechanisms such as Dropout ($p$) are deactivated, and Batch Normalization layers utilize static population running statistics rather than dynamic batch calculations.
+* **Six Sigma Process Integrity:** Runtime determinism provides the necessary foundation for quality governance. Ensuring $mR_{\text{inf}} = 0.000000$ guarantees that any subsequent variation detected by the $I\text{-}mR$ charts during production originates exclusively from genuine data distribution shifts or environmental noise, rather than runtime execution anomalies.
 ---
 
 ## Technical Stack & Frameworks
